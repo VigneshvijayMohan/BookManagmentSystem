@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request
 from forms import LoginForm, RegistrationForm
-from flask_wtf.csrf import CSRFProtect
+# from flask_wtf.csrf import CSRFProtect
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 
@@ -23,7 +23,7 @@ class User(db.Model):
 class Book(db.Model):
     id = id = db.Column(db.Integer, primary_key = True)
     title = db.Column(db.String(200), unique = True, nullable = False)
-    author = db.Column(db.String(200), unique = True, nullable = False)
+    author = db.Column(db.String(200), nullable = False)
     isdn = db.Column(db.Integer, unique = True, nullable = False)
     publidate = db.Column(db.DateTime, nullable = False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable = False)
@@ -38,12 +38,13 @@ class Book(db.Model):
 @app.route("/list")
 def list_books():
     books = Book.query.all()
-    print(books)
     book_list = [
         
         {
             'title':book.title,
             'author':book.author,
+            'isdn': book.isdn,
+            'publidate': book.publidate
         }
         for book in books
     ]
@@ -53,51 +54,54 @@ def list_books():
 @app.route("/list/<book_id>", methods=['GET'])
 def list_book_indi(book_id):
     books = db.session.query(Book).filter(Book.id == book_id).all()
-    print(books)
-    book_list = [
-        
-        {
-            'title':book.title,
-            'author':book.author,
-        }
-        for book in books
-    ]
-    return jsonify(books = book_list)
-    # return jsonify("SOmething")
-
-
+    if books:
+        book_list = [
+            
+            {
+                'title':book.title,
+                'author':book.author,
+                'isdn': book.isdn,
+                'publidate': book.publidate
+            }
+            for book in books
+        ]
+        return jsonify(books = book_list)
+    else:
+        return jsonify({"error": "Book not found"}), 404
 
 
 @app.route("/books", methods=['POST'])
 def add_books():
     data = request.json
-    if not data:
-        raise AssertionError(message="Missing required details")
-    title_new = data['title']
-    author_new = data['author']
-    isdn_new = data['isdn']
-    # publidate_new = data['publidate']
-    publidate_new = datetime.strptime(data['publidate'], '%d-%m-%Y')
-    user_id_new = data['user_id']
-    new_book = Book(
-        title = title_new, 
-        author = author_new,
-        isdn = isdn_new,
-        publidate = publidate_new,
-        user_id = user_id_new
-        
-    )
-    db.session.add(new_book)
-    db.session.commit()
-    return jsonify('Adding new books')
+    if data:
+        title_new = data['title']
+        author_new = data['author']
+        isdn_new = data['isdn']
+        publidate_new = datetime.strptime(data['publidate'], '%d-%m-%Y')
+        user_id_new = data['user_id']
+        books = db.session.query(Book).filter(Book.title == title_new).all()
+        if books:
+            return jsonify({"error": "Book Already exists"}), 404
+        else:
+            new_book = Book(
+                title = title_new, 
+                author = author_new,
+                isdn = isdn_new,
+                publidate = publidate_new,
+                user_id = user_id_new
+                
+            )
+            db.session.add(new_book)
+            db.session.commit()
+            return jsonify({"Message":"Book Added Successfully"})
+    else:
+        return jsonify({"error": "Missing required fields"}), 404
 
 
 @app.route("/books/<book_id>", methods=['PUT'])
 def edit_book(book_id):
     data = request.json
     record = Book.query.filter_by(id=book_id).first()
-    
-    print(record)
     if record:
         record.title = data.get('title', record.title)
         record.author = data.get('author', record.author)
@@ -109,33 +113,22 @@ def edit_book(book_id):
         return jsonify({"Message":"Book updated Successfully"})
     else:
         return jsonify({"error": "Book not found"}), 404
-    # return jsonify("SOmething")
 
 
 
-@app.route("/register", methods =['POST'])
-def register():
-    data = request.form
-    form = RegistrationForm(data = data)
-    if form.validate():
+
+@app.route("/books/<book_id>", methods=['DELETE'])
+def delete_book(book_id):
+    record = Book.query.filter_by(id=book_id).first()
+    if record:
+        db.session.delete(record)
+        db.session.commit()
+        return jsonify({"Message":"Book updated Successfully"})
+    else:
+        return jsonify({"error": "Book not found"}), 404
         
-        # somwrhin
-        return jsonify({"message":"Registration Complete"}), 200
-    else: 
-        errors = form.errors
-        return jsonify({"Errors":errors}), 400
 
 
-@app.route("/login", methods =['POST'])
-def login():
-    data = request.form
-    form = LoginForm(data = data)
-    if form.validate():
-        # somwrhin
-        return jsonify({"message":"Login Complete"}), 200
-    else: 
-        errors = form.errors
-        return jsonify({"Errors":errors}), 400
 
 if __name__ == "__main__":
     with app.app_context():
