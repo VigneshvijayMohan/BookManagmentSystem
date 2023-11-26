@@ -22,8 +22,8 @@ class User(db.Model):
     
 class Book(db.Model):
     id = id = db.Column(db.Integer, primary_key = True)
-    title = db.Column(db.String(20), unique = True, nullable = False)
-    author = db.Column(db.String(20), unique = True, nullable = False)
+    title = db.Column(db.String(200), unique = True, nullable = False)
+    author = db.Column(db.String(200), unique = True, nullable = False)
     isdn = db.Column(db.Integer, unique = True, nullable = False)
     publidate = db.Column(db.DateTime, nullable = False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable = False)
@@ -50,6 +50,20 @@ def list_books():
     return jsonify(books = book_list)
 
 
+@app.route("/list/<book_id>", methods=['GET'])
+def list_book_indi(book_id):
+    books = db.session.query(Book).filter(Book.id == book_id).all()
+    print(books)
+    book_list = [
+        
+        {
+            'title':book.title,
+            'author':book.author,
+        }
+        for book in books
+    ]
+    return jsonify(books = book_list)
+    # return jsonify("SOmething")
 
 
 
@@ -78,6 +92,24 @@ def add_books():
     return jsonify('Adding new books')
 
 
+@app.route("/books/<book_id>", methods=['PUT'])
+def edit_book(book_id):
+    data = request.json
+    record = Book.query.filter_by(id=book_id).first()
+    
+    print(record)
+    if record:
+        record.title = data.get('title', record.title)
+        record.author = data.get('author', record.author)
+        record.isdn = data.get('isdn', record.isdn)
+        publidate_str = data.get('publidate', record.publidate)
+        record.publidate = datetime.strptime(publidate_str, '%d-%m-%Y') if publidate_str else record.publidate
+        record.user_id = data.get('user_id', record.user_id)
+        db.session.commit()
+        return jsonify({"Message":"Book updated Successfully"})
+    else:
+        return jsonify({"error": "Book not found"}), 404
+    # return jsonify("SOmething")
 
 
 
